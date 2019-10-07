@@ -1,10 +1,12 @@
 import os
 import argparse
+import sys
+import time
 
 def get_parameter():
     parser = argparse.ArgumentParser()
     parser.add_argument('-input_file', type=str, help='input file .avs yang akan digunakan.')
-    parser.add_argument('-scale', type=float, help='resolusi video, dalam format x:y. Contohnya 1280:720 untuk 720p, 1280:-1 untuk lebar 1280 dengan tinggi menyesuaikan aspek rasio.')
+    parser.add_argument('-scale', type=str, help='resolusi video, dalam format x:y. Contohnya 1280:720 untuk 720p, 1280:-1 untuk lebar 1280 dengan tinggi menyesuaikan aspek rasio.')
     parser.add_argument('-destinasi_file', type=str, help='lokasi folder tempat hasil akan disimpan. File dibuat disini, pastiin ada dulu foldernya.')
     parser.add_argument('-crf', type=float, help='crf yang akan digunakan video encoder, default 22.')
     parser.add_argument('-aq_str', type=float, help='aq-strength yang akan digunakan video encoder, default 1.')
@@ -20,21 +22,26 @@ def get_parameter():
 
 # Cek input file, destinasi folder
 def check_parameter(params):
-    if params['input_file'] is not None:
+    if params['input_file']:
         params['input_dir'] = os.path.dirname(os.path.abspath(params['input_file']))
         params['orig_dir'] = os.path.abspath(os.path.curdir)
     else:
-        raise FileNotFoundError('File tidak ada: %s' % (params['input_file']))
+        raise FileNotFoundError('File tidak ada')
 
-    if params['destinasi_file']:
-        dest_path = os.path.abspath(params['destinasi_file'])
-        if not os.path.exists(dest_path):
-            raise FolderNotFoundError('Folder destinasi tidak ada: %s' % (dest_path))
-        if not os.path.isfile(params['input_file']):
-            raise FileNotFoundError('File tidak ada: %s' % (params['input_file']))
-    print('ALL PARAMS OK')
+    # if params['destinasi_file']:
+    #     dest_path = os.path.abspath(params['destinasi_file'])
+    #     if not os.path.exists(dest_path):
+    #         raise FolderNotFoundError('Folder destinasi tidak ada: %s' % (dest_path))
+    #     if not os.path.isfile(params['input_file']):
+    #         raise FileNotFoundError('File tidak ada: %s' % (params['input_file']))
+    #print('ALL PARAMS OK')
 
-    if params['aq_mode'] != 0:
+    if params.get('scale') and len(params['scale'].split(':')) == 2:
+        params['scale'] = params['scale'].split(':')
+        params['scale'] = [x.replace('0', '-1') if len(x) == 1 else x for x in params['scale']]
+
+    # Default aq-mode
+    if params['aq_mode']:
         if params['aq_mode'] > 3 or params['aq_mode'] < 0:
             print('Nilai aq-mode diluar spesifikasi encoder. Akan mengembalikan default ke 3.')
             params['aq_mode'] = 3
@@ -42,7 +49,8 @@ def check_parameter(params):
     else:
         params['aq_mode'] = 3
 
-    if params['aq_str'] is not None:
+    # Default aq-strength
+    if params['aq_str']:
         if params['aq_str'] < 0 or params['aq_str'] >3.0 :
             print('Nilai aq-strength diluar spesifikasi encoder. Akan mengembalikan default ke 1.')
             params['aq_str'] = 1.0
@@ -50,6 +58,7 @@ def check_parameter(params):
     else:
         params['aq_str'] = 1.0
 
+    # Default CRF
     if params['crf'] is None:
         params['crf'] = 22.0
 
@@ -81,9 +90,8 @@ def start_process(params):
     
     ## Finishing parameter untuk ffmpeg
     ffmpeg_params = 'ffmpeg -i {input_file} {filters} {video} {audio} {destinasi}.mkv'.format(input_file=params['input_file'],filters=video_filters, crf=params['crf'],aq_mode=params['aq_mode'], aq_strength=params['aq_str'], destinasi=params['destinasi_file'], audio=audio_encoder, video=video_encoder)
-    print('PROCESS')
+    ## print('PROCESS')
     print(ffmpeg_params)
-
     
 if __name__ == '__main__':
     ## Validasi parameter
@@ -94,6 +102,3 @@ if __name__ == '__main__':
     print('Starting external job...\n[%s]' % "ffmpeg")
     print('_' * 50 + '\n' + '_' * 50 + '\n')
     start_process(params)
-
-
-#EOFgit 
