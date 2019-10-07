@@ -2,6 +2,7 @@ import os
 import argparse
 import sys
 import time
+import subprocess
 
 def get_parameter():
     parser = argparse.ArgumentParser()
@@ -75,7 +76,7 @@ def start_process(params):
     if params['aac']:
         audio_encoder = '-c:a libfdk_aac -vbr 4'
     else:
-        audio_encoder = 'libopus -b:a 96k -vbr on -compression_level 10'
+        audio_encoder = '-c:a libopus -b:a 96k -vbr on -compression_level 10'
 
     if params['hevc']:
         ## Parameter x265, edit seperlunya.
@@ -92,6 +93,18 @@ def start_process(params):
     ffmpeg_params = 'ffmpeg -i {input_file} {filters} {video} {audio} {destinasi}.mkv'.format(input_file=params['input_file'],filters=video_filters, crf=params['crf'],aq_mode=params['aq_mode'], aq_strength=params['aq_str'], destinasi=params['destinasi_file'], audio=audio_encoder, video=video_encoder)
     ## print('PROCESS')
     print(ffmpeg_params)
+    
+    # Start calling external process FFMPEG
+    process = subprocess.Popen(ffmpeg_params, shell=True, stdout=subprocess.PIPE)
+
+    for line in iter(process.stdout.readline, b''):
+        line = line.decode('utf8')
+
+        try:
+            sys.stdout.write(line)
+            tempfile.write(line)
+        except:
+            pass
     
 if __name__ == '__main__':
     ## Validasi parameter
