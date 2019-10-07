@@ -3,6 +3,7 @@ import argparse
 import sys
 import time
 import subprocess
+import pysftp
 
 def get_parameter():
     parser = argparse.ArgumentParser()
@@ -105,6 +106,18 @@ def start_process(params):
             tempfile.write(line)
         except:
             pass
+
+    # untested
+    server = pysftp.Connection(host="x",username="x",password="x", log="ftp.log")
+    with server.cd('\path\to\folder'):
+        server.put(params['destinasi_file'])
+
+    server.close()
+
+
+    # END OF UNTESTED CODE
+
+    
     
 if __name__ == '__main__':
     ## Validasi parameter
