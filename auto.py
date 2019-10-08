@@ -80,27 +80,35 @@ def start_process(params):
     else:
         audio_encoder = '-c:a libopus -b:a 96k -vbr on -compression_level 10'
     
+    if params['thread'] is not None:
+        thread = params['thread']
+    else:
+        thread = 0
+
     if params['hevc']:
-        ## Parameter x265, edit seperlunya.
-        video_encoder = '-c:v libx265 -preset slower -pix_fmt yuv420p10le -x265-params ctu=32:crf={crf}'\
-        ':psy-rd=2.0:psy-rdoq=2.00:aq-mode={aqmode}:aq-strength={aqstr}:me=3:bframes=8:ref=6:no-sao=1:ctu=32:rd=4:subme=5'\
-        ':rect=1:amp=0:rc-lookahead=30:limit-refs=2:max-merge=3:rskip=1:tu-intra-depth=2:tu-inter-depth=2:lookahead-slices=4'\
-            .format(crf=params['crf'],aqmode=params['aq_mode'], aqstr=params['aq_str'])
+        ## Parameter x265, edit seperlunya. 
+        video_encoder = '-c:v libx265 -threads {thread} -preset slower -pix_fmt yuv420p10le -x265-params ctu=32:crf={crf}'\
+        ':psy-rd=2.0:psy-rdoq=2.00:aq-mode={aqmode}:aq-strength={aqstr}:me=3:bframes=8:ref=6:sao=0:selective-sao=0:ctu=32:rd=4:subme=5'\
+        ':rect=1:amp=0:rc-lookahead=30:limit-refs=2:max-merge=3:rskip=1:tu-intra-depth=2:tu-inter-depth=2:lookahead-slices=4:pools={thread}'\
+            .format(crf=params['crf'],aqmode=params['aq_mode'], aqstr=params['aq_str'], thread=params['thread'])
     
     else:
         ## Parameter x264, edit seperlunya
-        video_encoder = '-c:v libx264 -preset veryslow -pix_fmt yuv420p10le -crf {crf} -aq-mode {aqmode} -aq-strength {aqstr}'.format(crf=params['crf'],aqmode=params['aq_mode'], aqstr=params['aq_str'])
+        video_encoder = '-c:v libx264 -threads {thread} -preset veryslow -pix_fmt yuv420p10le -crf {crf} -aq-mode {aqmode} -aq-strength {aqstr}'\
+            .format(crf=params['crf'],aqmode=params['aq_mode'], aqstr=params['aq_str'], thread=params['thread'])
     
     ## Finishing parameter untuk ffmpeg
     if not video_filters:
-        ffmpeg_params = 'ffmpeg -i \"{input_file}\" {filters} {video} {audio} \"{destinasi}.mkv\"'.format(input_file=params['input_file'],filters=video_filters, crf=params['crf'],aq_mode=params['aq_mode'], aq_strength=params['aq_str'], destinasi=params['destinasi_file'], audio=audio_encoder, video=video_encoder)
+        ffmpeg_params = 'ffmpeg -i \"{input_file}\" {filters} {video} {audio} \"{destinasi}\"'\
+            .format(input_file=params['input_file'],filters=video_filters, crf=params['crf'],aq_mode=params['aq_mode'], aq_strength=params['aq_str'], destinasi=params['destinasi_file'], audio=audio_encoder, video=video_encoder)
     else:
-        ffmpeg_params = 'ffmpeg -i \"{input_file}\" {video} {audio} \"{destinasi}.mkv\"'.format(input_file=params['input_file'],filters=video_filters, crf=params['crf'],aq_mode=params['aq_mode'], aq_strength=params['aq_str'], destinasi=params['destinasi_file'], audio=audio_encoder, video=video_encoder)
+        ffmpeg_params = 'ffmpeg -i \"{input_file}\" {video} {audio} \"{destinasi}\"'\
+            .format(input_file=params['input_file'],filters=video_filters, crf=params['crf'],aq_mode=params['aq_mode'], aq_strength=params['aq_str'], destinasi=params['destinasi_file'], audio=audio_encoder, video=video_encoder)
 
     ## print('PROCESS')
     print(ffmpeg_params)
-    
-    # Start calling external process FFMPEG
+    print('_' * 50 + '\n')
+    # Start calling external process FFMPEG for encoding
     process = subprocess.Popen(ffmpeg_params, shell=True, stdout=subprocess.PIPE)
 
     for line in iter(process.stdout.readline, b''):
@@ -112,15 +120,28 @@ def start_process(params):
         except:
             pass
 
-    # untested placeholder
+    print('_' * 50 + '\n' + '_' * 50 + '\n')
+    
+    
+    # Connect to SFTP server and upload file
     if params['sftp']:
-        server = pysftp.Connection(host="x",username="x",password="x", log="ftp.log")
-        with server.cd('\path\to\folder'):
-            server.put(params['destinasi_file'])
-
+        print("Uploading file to FTP SERVER")
+        # accept any host key (warning, this will make YOU invurnerable to MITM attack! use at your own risk!)
+        cnopts = pysftp.CnOpts()
+        cnopts.hostkeys = None
+        temp_dest = "{0}".format(params['destinasi_file'])
+        # temp_dest = temp_dest.replace("\\\\","\\")
+        print (temp_dest)
+        # attempt connection
+        server = pysftp.Connection(host="x",username="x",password="x", log="ftp.log", cnopts=cnopts)
+        with server.cd('/path/to/destination'):
+            server.put(temp_dest)
         server.close()
-    # END OF UNTESTED CODE
-    print("SUCCESSFULLY PROCESSED BY FFMPEG")
+
+    # No error check so far, if any error occurs it must be handled manually.
+
+    print("SUCCESSFULLY PROCESSED BY FFMPEG AND UPLOADED TO DESTINATION HOST")
+    print('_' * 50 + '\n' + '_' * 50 + '\n')
 
 if __name__ == '__main__':
     ## Validasi parameter

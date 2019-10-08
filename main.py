@@ -6,10 +6,10 @@ from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler   
 
 DESTINATION_PATH = ""
+SFTP_ENABLED = False
 
 class FolderNotFoundError(Exception):
     pass
-
 
 def on_created(event):
     print("File {src} terdeteksi".format(src=event.src_path))
@@ -19,8 +19,12 @@ def on_created(event):
     print(file_name)
     print(DESTINATION_PATH)
     if extension == ".mkv" or extension == ".mp4" or extension == ".avi":
-        print("File is encodeable with ffmpeg. Waiting for 3Processing now....")
-        os.system("auto.py -input_file \"{src}\" -hevc -aq_str 0.8 -destinasi_file  \"{dst}\\{filename}_encoded{extension}\"".format(src=event.src_path, extension=extension, filename=file_name, dst=DESTINATION_PATH))
+        print("File is encodeable with ffmpeg. Processing now....")
+        if SFTP_ENABLED is True:
+            os.system("auto.py -input_file \"{src}\" -hevc -aq_str 0.8 -thread 6 -sftp -destinasi_file  \"{dst}\\{filename}_encoded{extension}\"".format(src=event.src_path, extension=extension, filename=file_name, dst=DESTINATION_PATH))
+        else:
+            os.system("auto.py -input_file \"{src}\" -hevc -aq_str 0.8 -thread 6 -destinasi_file  \"{dst}\\{filename}_encoded{extension}\"".format(src=event.src_path, extension=extension, filename=file_name, dst=DESTINATION_PATH))
+
     else:
         print("File tidak dapat di encode. Lanjut observe...")
         pass
@@ -37,15 +41,18 @@ def on_moved(event):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-spath', type=str, help='lokasi path yang akan digunakan.')
-    parser.add_argument('-dpath', type=str, help='lokasi path yang akan digunakan.')
+    parser.add_argument('-spath', type=str, help='lokasi source path yang akan digunakan.')
+    parser.add_argument('-dpath', type=str, help='lokasi destination path yang akan digunakan.')
+    parser.add_argument('-sftp', action='store_true', help='enable fitur sftp.')
     params = parser.parse_args().__dict__
     if params['spath'] is None:
         raise FolderNotFoundError('Folder tidak ada')
     if params['dpath'] is None:
         raise FolderNotFoundError('Folder tidak ada')
-    
+    if params['sftp']:
+        SFTP_ENABLED = True
     DESTINATION_PATH = params['dpath']
+
     # Initiate event handler for file handling
     ignore_patterns = ""
     ignore_directories = False
