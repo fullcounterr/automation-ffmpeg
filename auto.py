@@ -16,12 +16,12 @@ def get_parameter():
     parser.add_argument('-thread', type=int, help='jumlah yang akan digunakan video encoder.')
     parser.add_argument('-hevc', action='store_true', help='pakai HEVC, kalau ini gak dimasukin cuma pake x264.')
     parser.add_argument('-aac', action='store_true', help='pakai AAC, kalau ini gak dimasukin bakal pake OPUS.')
+    parser.add_argument('-sftp', action='store_true', help='nyalakan fitur upload via sftp.')
     parser.add_argument('-attach', type=str, help='tambahkan attachment font.')
     params = parser.parse_args().__dict__
     params = check_parameter(params)
     return params
     
-
 # Cek input file, destinasi folder
 def check_parameter(params):
     if params['input_file']:
@@ -68,30 +68,35 @@ def check_parameter(params):
 
 def start_process(params):
     # Filter video
-    video_filters = list()
+    # video_filters = list()
+    video_filters = ''
     # Filter untuk rescale size
-    if params['scale']:
-        video_filters.append(('scale={width}:{height}'.format(width=params['scale'][0], height=params['scale'][1])))
+    # if params['scale']:
+    #    video_filters.append(('scale={width}:{height}'.format(width=params['scale'][0], height=params['scale'][1])))
     
     ## Cek audio mau pakai aac atau opus
     if params['aac']:
         audio_encoder = '-c:a libfdk_aac -vbr 4'
     else:
         audio_encoder = '-c:a libopus -b:a 96k -vbr on -compression_level 10'
-
+    
     if params['hevc']:
         ## Parameter x265, edit seperlunya.
-        video_encoder = '-c:v libx265 -x265-params preset=slower:ctu=32:output-depth=10:crf={crf}'\
-        ':psy-rd=2.0:psy-rdoq=2.00:aq-mode={aqmode}:aq-strength={aqstr}:me=3:bframes=8:ref=6:no-sao:ctu=32:rd=4:subme=5'\
-        ':rect:no-amp:rc-lookahead=30:limit-refs=2:max-merge=3:rskip:tu-intra-depth=2:tu-inter-depth=2:lookahead-slices=4'\
-            .format(filters=video_filters, crf=params['crf'],aqmode=params['aq_mode'], aqstr=params['aq_str'])
+        video_encoder = '-c:v libx265 -preset slower -pix_fmt yuv420p10le -x265-params ctu=32:crf={crf}'\
+        ':psy-rd=2.0:psy-rdoq=2.00:aq-mode={aqmode}:aq-strength={aqstr}:me=3:bframes=8:ref=6:no-sao=1:ctu=32:rd=4:subme=5'\
+        ':rect=1:amp=0:rc-lookahead=30:limit-refs=2:max-merge=3:rskip=1:tu-intra-depth=2:tu-inter-depth=2:lookahead-slices=4'\
+            .format(crf=params['crf'],aqmode=params['aq_mode'], aqstr=params['aq_str'])
     
     else:
         ## Parameter x264, edit seperlunya
-        video_encoder = '-c:v libx264 -preset veryslow -pix_fmt yuv420p10le -crf {crf} -aq-mode {aqmode} -aq-strength {aqstr}'.format(filters=video_filters, crf=params['crf'],aqmode=params['aq_mode'], aqstr=params['aq_str'])
+        video_encoder = '-c:v libx264 -preset veryslow -pix_fmt yuv420p10le -crf {crf} -aq-mode {aqmode} -aq-strength {aqstr}'.format(crf=params['crf'],aqmode=params['aq_mode'], aqstr=params['aq_str'])
     
     ## Finishing parameter untuk ffmpeg
-    ffmpeg_params = 'ffmpeg -i {input_file} {filters} {video} {audio} {destinasi}.mkv'.format(input_file=params['input_file'],filters=video_filters, crf=params['crf'],aq_mode=params['aq_mode'], aq_strength=params['aq_str'], destinasi=params['destinasi_file'], audio=audio_encoder, video=video_encoder)
+    if not video_filters:
+        ffmpeg_params = 'ffmpeg -i \"{input_file}\" {filters} {video} {audio} \"{destinasi}.mkv\"'.format(input_file=params['input_file'],filters=video_filters, crf=params['crf'],aq_mode=params['aq_mode'], aq_strength=params['aq_str'], destinasi=params['destinasi_file'], audio=audio_encoder, video=video_encoder)
+    else:
+        ffmpeg_params = 'ffmpeg -i \"{input_file}\" {video} {audio} \"{destinasi}.mkv\"'.format(input_file=params['input_file'],filters=video_filters, crf=params['crf'],aq_mode=params['aq_mode'], aq_strength=params['aq_str'], destinasi=params['destinasi_file'], audio=audio_encoder, video=video_encoder)
+
     ## print('PROCESS')
     print(ffmpeg_params)
     
@@ -107,22 +112,19 @@ def start_process(params):
         except:
             pass
 
-    # untested
-    server = pysftp.Connection(host="x",username="x",password="x", log="ftp.log")
-    with server.cd('\path\to\folder'):
-        server.put(params['destinasi_file'])
+    # untested placeholder
+    if params['sftp']:
+        server = pysftp.Connection(host="x",username="x",password="x", log="ftp.log")
+        with server.cd('\path\to\folder'):
+            server.put(params['destinasi_file'])
 
-    server.close()
-
-
+        server.close()
     # END OF UNTESTED CODE
+    print("SUCCESSFULLY PROCESSED BY FFMPEG")
 
-    
-    
 if __name__ == '__main__':
     ## Validasi parameter
     params = get_parameter()
-
     print('Proses file ' + params['input_file'])
     print('_' * 50 + '\n' + '_' * 50 + '\n')
     print('Starting external job...\n[%s]' % "ffmpeg")
