@@ -2,11 +2,17 @@ import os
 import argparse
 # Watchfolder
 import time
+import re
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler   
 
 DESTINATION_PATH = ""
 SFTP_ENABLED = False
+
+# Do not modify this regex unless you have to.
+REGEX = "^(?:\[(.*)\][\s\.])(?:(.+?)[\s\.]-[\s\.])(((?!(1080|720|480)))\d{1,3})[\s\.](?:\[(720p|1080p|480p)\])"
+REGEX_CRC = "^(?:\[(.*)\][\s\.])(?:(.+?)[\s\.]-[\s\.])(((?!(1080|720|480)))\d{1,3})[\s\.](?:\[(720p|1080p|480p)\])(?:\[(.*)\])"
+
 
 class FolderNotFoundError(Exception):
     pass
@@ -18,12 +24,24 @@ def on_created(event):
     print(extension)
     print(file_name)
     print(DESTINATION_PATH)
+
+    name = file_name+extension
+    l = re.compile(REGEX_CRC).split(name)
+
+    # Check if length is one. If it's one, then it doesn't have CRC. Fall back to non CRC regex.
+    if len(l) == 1:
+        l = re.compile(REGEX).split(name) 
+
+    # Build new file name
+    base = "(Hi10)_"
+    file_name = base+re.sub(r"\s+", '_', l[2])+"_-_"+l[3]+"_("+l[6]+")_("+l[1]+")"
+    print(file_name)
     if extension == ".mkv" or extension == ".mp4" or extension == ".avi":
         print("File is encodeable with ffmpeg. Processing now....")
         if SFTP_ENABLED is True:
-            os.system("auto.py -input_file \"{src}\" -hevc -aq_str 0.8 -thread 6 -sftp -destinasi_file  \"{dst}\\{filename}_encoded{extension}\"".format(src=event.src_path, extension=extension, filename=file_name, dst=DESTINATION_PATH))
+            os.system("auto.py -input_file \"{src}\" -hevc -aq_str 0.8 -thread 6 -sftp -apost -destinasi_file  \"{dst}\\{filename}{extension}\"".format(src=event.src_path, extension=extension, filename=file_name, dst=DESTINATION_PATH))
         else:
-            os.system("auto.py -input_file \"{src}\" -hevc -aq_str 0.8 -thread 6 -destinasi_file  \"{dst}\\{filename}_encoded{extension}\"".format(src=event.src_path, extension=extension, filename=file_name, dst=DESTINATION_PATH))
+            os.system("auto.py -input_file \"{src}\" -hevc -aq_str 0.8 -thread 6 -destinasi_file  \"{dst}\\{filename}{extension}\"".format(src=event.src_path, extension=extension, filename=file_name, dst=DESTINATION_PATH))
 
     else:
         print("File tidak dapat di encode. Lanjut observe...")
@@ -68,6 +86,7 @@ if __name__ == '__main__':
     #observer.schedule(os.system("auto.py -input_file \"C:\\Kosongan\" -hevc -aq_str 0.8 -destinasi_file \"maksimal.mkv\""), params['path'], recursive=True)
     observer.schedule(handle_event, params['spath'], recursive=False)
     observer.start()
+    print("Daemon up and running...")
     try:
         while True:
             time.sleep(1)

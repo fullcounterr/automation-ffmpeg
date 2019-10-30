@@ -3,8 +3,21 @@ import argparse
 import sys
 import time
 import subprocess
+import re
+# For file upload
 import pysftp
+# For Post
+import requests
+import json
+import math
 
+fInfo = dict()
+
+# Do not modify this regex unless you have to.
+REGEX = "^(?:\[(.*)\][\s\.])(?:(.+?)[\s\.]-[\s\.])(((?!(1080|720|480)))\d{1,3})[\s\.](?:\[(720p|1080p|480p)\])"
+REGEX_CRC = "^(?:\[(.*)\][\s\.])(?:(.+?)[\s\.]-[\s\.])(((?!(1080|720|480)))\d{1,3})[\s\.](?:\[(720p|1080p|480p)\])(?:\[(.*)\])"
+
+# Cek parameter
 def get_parameter():
     parser = argparse.ArgumentParser()
     parser.add_argument('-input_file', type=str, help='input file .avs yang akan digunakan.')
@@ -17,6 +30,7 @@ def get_parameter():
     parser.add_argument('-hevc', action='store_true', help='pakai HEVC, kalau ini gak dimasukin cuma pake x264.')
     parser.add_argument('-aac', action='store_true', help='pakai AAC, kalau ini gak dimasukin bakal pake OPUS.')
     parser.add_argument('-sftp', action='store_true', help='nyalakan fitur upload via sftp.')
+    parser.add_argument('-apost', action='store_true', help='nyalakan fitur auto update post.')
     parser.add_argument('-attach', type=str, help='tambahkan attachment font.')
     params = parser.parse_args().__dict__
     params = check_parameter(params)
@@ -29,14 +43,6 @@ def check_parameter(params):
         params['orig_dir'] = os.path.abspath(os.path.curdir)
     else:
         raise FileNotFoundError('File tidak ada')
-
-    # if params['destinasi_file']:
-    #     dest_path = os.path.abspath(params['destinasi_file'])
-    #     if not os.path.exists(dest_path):
-    #         raise FolderNotFoundError('Folder destinasi tidak ada: %s' % (dest_path))
-    #     if not os.path.isfile(params['input_file']):
-    #         raise FileNotFoundError('File tidak ada: %s' % (params['input_file']))
-    #print('ALL PARAMS OK')
 
     if params.get('scale') and len(params['scale'].split(':')) == 2:
         params['scale'] = params['scale'].split(':')
@@ -63,7 +69,6 @@ def check_parameter(params):
     # Default CRF
     if params['crf'] is None:
         params['crf'] = 22.0
-
     return params
 
 def start_process(params):
@@ -99,13 +104,12 @@ def start_process(params):
     
     ## Finishing parameter untuk ffmpeg
     if not video_filters:
-        ffmpeg_params = 'ffmpeg -i \"{input_file}\" {filters} {video} {audio} \"{destinasi}\"'\
+        ffmpeg_params = 'ffmpeg -i \"{input_file}\" -map 0 {filters} {video} {audio} \"{destinasi}\"'\
             .format(input_file=params['input_file'],filters=video_filters, crf=params['crf'],aq_mode=params['aq_mode'], aq_strength=params['aq_str'], destinasi=params['destinasi_file'], audio=audio_encoder, video=video_encoder)
     else:
-        ffmpeg_params = 'ffmpeg -i \"{input_file}\" {video} {audio} \"{destinasi}\"'\
+        ffmpeg_params = 'ffmpeg -i \"{input_file}\" -map 0 {video} {audio} \"{destinasi}\"'\
             .format(input_file=params['input_file'],filters=video_filters, crf=params['crf'],aq_mode=params['aq_mode'], aq_strength=params['aq_str'], destinasi=params['destinasi_file'], audio=audio_encoder, video=video_encoder)
 
-    ## print('PROCESS')
     print(ffmpeg_params)
     print('_' * 50 + '\n')
     # Start calling external process FFMPEG for encoding
@@ -121,27 +125,92 @@ def start_process(params):
             pass
 
     print('_' * 50 + '\n' + '_' * 50 + '\n')
-    
-    
+    # Get name and ep name so we can check post ID and upload to correct folder
+    check_sname(params)
     # Connect to SFTP server and upload file
     if params['sftp']:
-        print("Uploading file to FTP SERVER")
-        # accept any host key (warning, this will make YOU invurnerable to MITM attack! use at your own risk!)
-        cnopts = pysftp.CnOpts()
-        cnopts.hostkeys = None
-        temp_dest = "{0}".format(params['destinasi_file'])
-        # temp_dest = temp_dest.replace("\\\\","\\")
-        print (temp_dest)
-        # attempt connection
-        server = pysftp.Connection(host="x",username="x",password="x", log="ftp.log", cnopts=cnopts)
-        with server.cd('/path/to/destination'):
-            server.put(temp_dest)
-        server.close()
+        start_upload(params)
+
+    if params['apost']:
+        auto_post(params)
 
     # No error check so far, if any error occurs it must be handled manually.
 
     print("SUCCESSFULLY PROCESSED BY FFMPEG AND UPLOADED TO DESTINATION HOST")
     print('_' * 50 + '\n' + '_' * 50 + '\n')
+
+def start_upload(params):
+    print("Uploading file to FTP SERVER")
+    # accept any host key (warning, this will make YOU invurnerable to MITM attack! use at your own risk!)
+    cnopts = pysftp.CnOpts()
+    cnopts.hostkeys = None
+    temp_dest = "{0}".format(params['destinasi_file'])
+    # attempt connection
+    server = pysftp.Connection(host="",username="",password="", log="ftp.log", cnopts=cnopts)
+    with server.cd('/path/to/folder/'+fInfo['folder']):
+        server.put(temp_dest)
+    server.close()
+
+def auto_post(params):
+    us = {'username': '', 'password': ''}
+    r = requests.post("https://api.example.net/v1/auth", json=us)
+    auth = json.loads(r.text)
+    auth_token = auth["access_token"]
+    # Get current post content
+    r = requests.get("https://api.example.net/v1/post/"+fInfo["post_id"], headers={'Authorization': 'JWT '+auth_token})
+    post = json.loads(r.text)
+    post_content = post["post_content"]
+
+    # Get encoded file name and file size (BYTES)
+    file_name = os.path.basename(params['destinasi_file'])
+    file_size = os.path.getsize(params['destinasi_file'])
+
+    # Calculate file size for post
+    size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+    i = int(math.floor(math.log(file_size, 1024)))
+    p = math.pow(1024, i)
+    s = round(file_size / p, 2)
+    file_size = "%s %s" % (s, size_name[i])
+
+    # Table Template
+    template = "<tr>\n\
+         <td>"+fInfo['ep']+"</td>\n\
+        <td>"+file_size+"</td>\n\
+        <td><a href=\"https://example.net/"+fInfo["folder"]+"/"+file_name+"\"><img src=\"http://i.imgur.com/UjCePGg.png\" alt=\"DDL\" title=\"Download Video File\"></a></td>\n\
+        <td><a href=\"https://example.net/"+fInfo["folder"]+"/"+file_name+"\"><img src=\"http://i.imgur.com/UjCePGg.png\" alt=\"DDL\" title=\"Download Video File\"></a></td>\n\
+        <td><a href=\"https://example.net/"+fInfo["folder"]+"/"+file_name+"\"><img src=\"http://i.imgur.com/UjCePGg.png\" alt=\"DDL\" title=\"Download Video File\"></a></td>\n\
+    </tr>\n\
+    <!--ToBeReplaced-->\n"
+
+    # Craft and update post
+    final_post = post_content.replace("<!--ToBeReplaced-->", template)
+    postBody = {"post_content": final_post, "bump": True}
+    header = {"Authorization": "JWT "+auth_token, "Content-Type": "application/json"}
+    r = requests.put("https://api.example.net/v1/post/"+fInfo["post_id"], headers=header, json=postBody)
+    print(r.text)
+    pass
+
+def check_sname(params):
+    extension = os.path.splitext(params['input_file'])[-1].lower()
+    file_name = os.path.basename(params['input_file'])
+    name = file_name+extension
+    # Disassemble file name based on regex
+    l = re.compile(REGEX_CRC).split(name)
+    # Check if length is one. If it's one, then it doesn't have CRC. Fall back to non CRC regex.
+    if len(l) == 1:
+        l = re.compile(REGEX).split(name) 
+    # Save to dictionary
+    # These need to be modified every new season.
+    # fInfo contains post_id, folder for FTP, and episode number, which will be used for post update.
+    if "Fate" in l[2]:
+        fInfo["post_id"] = "12345"
+        fInfo["folder"] = "Fate"
+    elif "Lord" in l[2]:
+        fInfo["post_id"] = "67890"
+        fInfo["folder"] = "Lord"
+    else :
+        raise ValueError('Could not find post ID. Reason : No matching name.')
+    fInfo["ep"] = l[3]
 
 if __name__ == '__main__':
     ## Validasi parameter
