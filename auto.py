@@ -10,6 +10,8 @@ import pysftp
 import requests
 import json
 import math
+# For CRC
+import zlib
 
 fInfo = dict()
 
