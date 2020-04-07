@@ -127,6 +127,7 @@ def start_process(params):
     print('_' * 50 + '\n' + '_' * 50 + '\n')
     # Get name and ep name so we can check post ID and upload to correct folder
     check_sname(params)
+    c_crc(params)
     # Connect to SFTP server and upload file
     if params['sftp']:
         start_upload(params)
@@ -151,6 +152,21 @@ def start_upload(params):
         server.put(temp_dest)
     server.close()
 
+def c_crc(params):
+    # calculate crc before upload
+    h = 0
+    for i in open(params['destinasi_file'],"rb"):
+        prev = zlib.crc32(i, h)
+    crc = "%X"%(prev & 0xFFFFFFFF)
+    new_file_name = os.path.splitext(os.path.basename(params['destinasi_file']))[0]+"_("+crc+")"+os.path.splitext(params['destinasi_file'])[-1].lower()
+    
+    #rename file
+    os.rename(params['destinasi_file'], os.path.dirname(params['destinasi_file'])+"\\"+new_file_name)
+    
+    #replace params 
+    params['destinasi_file'] = os.path.dirname(params['destinasi_file'])+"\\"+new_file_name
+    print(params['destinasi_file'])
+    
 def auto_post(params):
     us = {'username': '', 'password': ''}
     r = requests.post("https://api.example.net/v1/auth", json=us)
