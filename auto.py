@@ -122,7 +122,7 @@ def start_process(params):
 
         try:
             sys.stdout.write(line)
-            tempfile.write(line)
+            # tempfile.write(line)
         except:
             pass
 
