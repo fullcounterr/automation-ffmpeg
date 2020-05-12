@@ -11,7 +11,7 @@ SFTP_ENABLED = False
 
 # Do not modify this regex unless you have to.
 REGEX = "^(?:\[(.*)\][\s\.])(?:(.+?)[\s\.]-[\s\.])(((?!(1080|720|480)))\d{1,3})[\s\.](?:\[(720p|1080p|480p)\])"
-REGEX_CRC = "^(?:\[(.*)\][\s\.])(?:(.+?)[\s\.]-[\s\.])(((?!(1080|720|480)))\d{1,3})[\s\.](?:\[(720p|1080p|480p)\])(?:\[(.*)\])"
+REGEX_CRC = "^(?:\[(.*)\][\s\.])(?:(.+?)[\s\.]-[\s\.])(\d{1,3})[\s\.](?:(\[(1080p|720p|1080p|480p)\])|(\((WEB 1080p|WEB 720p)\)))(\s|)(?:(\[(.*)\])|(\((.*)\)))"
 
 
 class FolderNotFoundError(Exception):
@@ -34,7 +34,7 @@ def on_created(event):
 
     # Build new file name
     base = "(Hi10)_"
-    file_name = base+re.sub(r"\s+", '_', l[2])+"_-_"+l[3]+"_("+l[6]+")_("+l[1]+")"
+    file_name = base+re.sub(r"\s+", '_', l[2])+"_-_"+l[3]+"_("+l[1]+")_(720p)"
     print(file_name)
     if extension == ".mkv" or extension == ".mp4" or extension == ".avi":
         print("File is encodeable with ffmpeg. Processing now....")
