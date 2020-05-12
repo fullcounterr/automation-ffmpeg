@@ -106,10 +106,10 @@ def start_process(params):
     
     ## Finishing parameter untuk ffmpeg
     if not video_filters:
-        ffmpeg_params = 'ffmpeg -i \"{input_file}\" -map 0 {filters} {video} {audio} \"{destinasi}\"'\
+        ffmpeg_params = 'ffmpeg -i \"{input_file}\" -map 0 {filters} -vf scale=-1:720 {video} {audio} \"{destinasi}\"'\
             .format(input_file=params['input_file'],filters=video_filters, crf=params['crf'],aq_mode=params['aq_mode'], aq_strength=params['aq_str'], destinasi=params['destinasi_file'], audio=audio_encoder, video=video_encoder)
     else:
-        ffmpeg_params = 'ffmpeg -i \"{input_file}\" -map 0 {video} {audio} \"{destinasi}\"'\
+        ffmpeg_params = 'ffmpeg -i \"{input_file}\" -map 0 -vf scale=-1:720 {video} {audio} \"{destinasi}\"'\
             .format(input_file=params['input_file'],filters=video_filters, crf=params['crf'],aq_mode=params['aq_mode'], aq_strength=params['aq_str'], destinasi=params['destinasi_file'], audio=audio_encoder, video=video_encoder)
 
     print(ffmpeg_params)
