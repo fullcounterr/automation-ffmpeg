@@ -158,8 +158,8 @@ def c_crc(params):
     # calculate crc before upload
     h = 0
     for i in open(params['destinasi_file'],"rb"):
-        prev = zlib.crc32(i, h)
-    crc = "%X"%(prev & 0xFFFFFFFF)
+        h = zlib.crc32(i, h)
+    crc = "%08X"%(h & 0xFFFFFFFF)
     new_file_name = os.path.splitext(os.path.basename(params['destinasi_file']))[0]+"_("+crc+")"+os.path.splitext(params['destinasi_file'])[-1].lower()
     
     #rename file
